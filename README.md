@@ -288,4 +288,59 @@ nebula/
 
 ---
 
+## 📱 Android APK构建
+
+### 环境要求
+- Java 8 或更高版本
+- Android SDK (可选，用于完整构建)
+
+### 快速构建APK
+
+#### 方法1: 使用构建脚本
+```bash
+# 构建Debug版本
+./build-apk.sh debug
+
+# 构建Release版本
+./build-apk.sh release
+
+# 构建两个版本
+./build-apk.sh both
+
+# 清理项目
+./build-apk.sh clean
+```
+
+#### 方法2: 使用Gradle命令
+```bash
+cd android
+
+# 构建Debug APK
+./gradlew assembleDebug
+
+# 构建Release APK  
+./gradlew assembleRelease
+
+# 清理项目
+./gradlew clean
+```
+
+### APK输出位置
+- **Debug APK**: `android/app/build/outputs/apk/debug/app-debug.apk`
+- **Release APK**: `android/app/build/outputs/apk/release/app-release.apk`
+- **根目录副本**: `nebula-debug.apk` 和 `nebula-release.apk`
+
+### GitHub Actions自动构建
+项目配置了GitHub Actions，每次推送代码时会自动：
+1. 构建Debug和Release版本APK
+2. 上传构建产物到Actions artifacts
+3. 在master分支创建Release并附带APK文件
+
+查看构建状态和下载APK：`Actions` → `Build Android APK`
+
+### 注意事项
+1. Release APK未签名，需要自行签名后才能安装
+2. 确保Android SDK已安装并设置`ANDROID_HOME`环境变量
+3. 首次构建可能需要下载依赖，请耐心等待
+
 **享受聊天的乐趣！** 🎉

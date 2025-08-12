@@ -1,0 +1,90 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v2
+      
+    - name: Cache Gradle packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Grant execute permission for gradlew
+      run: chmod +x android/gradlew
+      
+    - name: Build Debug APK
+      run: |
+        cd android
+        ./gradlew assembleDebug
+        
+    - name: Build Release APK (unsigned)
+      run: |
+        cd android  
+        ./gradlew assembleRelease
+        
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: nebula-debug-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
+        
+    - name: Upload Release APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: nebula-release-apk
+        path: android/app/build/outputs/apk/release/app-release.apk
+        
+    - name: Copy APKs to root
+      run: |
+        cp android/app/build/outputs/apk/debug/app-debug.apk ./nebula-debug.apk
+        cp android/app/build/outputs/apk/release/app-release.apk ./nebula-release.apk
+        
+    - name: Create Release
+      if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ github.run_number }}
+        name: Release v${{ github.run_number }}
+        body: |
+          自动构建的APK发布
+          
+          ## 下载链接
+          - [Debug APK](./nebula-debug.apk) - 用于开发测试
+          - [Release APK](./nebula-release.apk) - 生产版本（未签名）
+          
+          ## 构建信息
+          - Commit: ${{ github.sha }}
+          - Branch: ${{ github.ref_name }}
+          - Build Number: ${{ github.run_number }}
+        files: |
+          nebula-debug.apk
+          nebula-release.apk
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
