@@ -1,0 +1,257 @@
+name: MCP Manual Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: '选择构建类型'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+        - debug
+        - release
+        - both
+      create_release:
+        description: '是否创建GitHub Release'
+        required: false
+        default: true
+        type: boolean
+      release_tag:
+        description: '自定义Release标签 (留空则自动生成)'
+        required: false
+        type: string
+      release_notes:
+        description: '发布说明'
+        required: false
+        default: '手动触发的APK构建'
+        type: string
+
+env:
+  JAVA_VERSION: '11'
+  ANDROID_API_LEVEL: '34'
+  BUILD_TOOLS_VERSION: '34.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    outputs:
+      debug_apk: ${{ steps.build_info.outputs.debug_apk }}
+      release_apk: ${{ steps.build_info.outputs.release_apk }}
+      
+    steps:
+    - name: 📁 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: ☕ Set up JDK ${{ env.JAVA_VERSION }}
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        
+    - name: 📱 Set up Android SDK
+      uses: android-actions/setup-android@v2
+      with:
+        api-level: ${{ env.ANDROID_API_LEVEL }}
+        build-tools: ${{ env.BUILD_TOOLS_VERSION }}
+        
+    - name: 💾 Cache Gradle packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: 🔧 Grant execute permission for gradlew
+      run: chmod +x android/gradlew
+      
+    - name: 📋 Display build configuration
+      run: |
+        echo "🏗️ 构建配置信息:"
+        echo "- 构建类型: ${{ github.event.inputs.build_type }}"
+        echo "- 创建Release: ${{ github.event.inputs.create_release }}"
+        echo "- Release标签: ${{ github.event.inputs.release_tag || '自动生成' }}"
+        echo "- Java版本: ${{ env.JAVA_VERSION }}"
+        echo "- Android API: ${{ env.ANDROID_API_LEVEL }}"
+        
+    - name: 🐛 Build Debug APK
+      if: github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both'
+      run: |
+        echo "🔨 构建Debug APK..."
+        cd android
+        ./gradlew clean assembleDebug --stacktrace
+        
+    - name: 🚀 Build Release APK
+      if: github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both'
+      run: |
+        echo "🔨 构建Release APK..."
+        cd android
+        ./gradlew assembleRelease --stacktrace
+        
+    - name: 📊 Set build info
+      id: build_info
+      run: |
+        DEBUG_APK=""
+        RELEASE_APK=""
+        
+        if [ "${{ github.event.inputs.build_type }}" == "debug" ] || [ "${{ github.event.inputs.build_type }}" == "both" ]; then
+          if [ -f "android/app/build/outputs/apk/debug/app-debug.apk" ]; then
+            DEBUG_APK="android/app/build/outputs/apk/debug/app-debug.apk"
+            echo "✅ Debug APK构建成功"
+          else
+            echo "❌ Debug APK构建失败"
+          fi
+        fi
+        
+        if [ "${{ github.event.inputs.build_type }}" == "release" ] || [ "${{ github.event.inputs.build_type }}" == "both" ]; then
+          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            RELEASE_APK="android/app/build/outputs/apk/release/app-release.apk"
+            echo "✅ Release APK构建成功"
+          else
+            echo "❌ Release APK构建失败"
+          fi
+        fi
+        
+        echo "debug_apk=$DEBUG_APK" >> $GITHUB_OUTPUT
+        echo "release_apk=$RELEASE_APK" >> $GITHUB_OUTPUT
+        
+    - name: 📦 Upload Debug APK
+      if: steps.build_info.outputs.debug_apk != ''
+      uses: actions/upload-artifact@v3
+      with:
+        name: nebula-debug-apk-${{ github.run_number }}
+        path: ${{ steps.build_info.outputs.debug_apk }}
+        retention-days: 30
+        
+    - name: 📦 Upload Release APK
+      if: steps.build_info.outputs.release_apk != ''
+      uses: actions/upload-artifact@v3
+      with:
+        name: nebula-release-apk-${{ github.run_number }}
+        path: ${{ steps.build_info.outputs.release_apk }}
+        retention-days: 30
+        
+    - name: 📋 Copy APKs to root directory
+      run: |
+        mkdir -p release_files
+        if [ -n "${{ steps.build_info.outputs.debug_apk }}" ]; then
+          cp ${{ steps.build_info.outputs.debug_apk }} ./nebula-debug-${{ github.run_number }}.apk
+          cp ${{ steps.build_info.outputs.debug_apk }} ./release_files/
+        fi
+        if [ -n "${{ steps.build_info.outputs.release_apk }}" ]; then
+          cp ${{ steps.build_info.outputs.release_apk }} ./nebula-release-${{ github.run_number }}.apk
+          cp ${{ steps.build_info.outputs.release_apk }} ./release_files/
+        fi
+        
+  create_release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.inputs.create_release == 'true' && (needs.build.outputs.debug_apk != '' || needs.build.outputs.release_apk != '')
+    
+    steps:
+    - name: 📁 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: 📥 Download artifacts
+      uses: actions/download-artifact@v3
+      
+    - name: 📋 Prepare release assets
+      id: prepare_assets
+      run: |
+        mkdir -p release_assets
+        ASSET_LIST=""
+        
+        if [ -d "nebula-debug-apk-${{ github.run_number }}" ]; then
+          cp nebula-debug-apk-${{ github.run_number }}/* release_assets/
+          mv release_assets/app-debug.apk release_assets/nebula-debug-${{ github.run_number }}.apk
+          ASSET_LIST="$ASSET_LIST
+          release_assets/nebula-debug-${{ github.run_number }}.apk"
+          echo "✅ Debug APK已准备"
+        fi
+        
+        if [ -d "nebula-release-apk-${{ github.run_number }}" ]; then
+          cp nebula-release-apk-${{ github.run_number }}/* release_assets/
+          mv release_assets/app-release.apk release_assets/nebula-release-${{ github.run_number }}.apk
+          ASSET_LIST="$ASSET_LIST
+          release_assets/nebula-release-${{ github.run_number }}.apk"
+          echo "✅ Release APK已准备"
+        fi
+        
+        echo "asset_list=$ASSET_LIST" >> $GITHUB_OUTPUT
+        
+    - name: 🏷️ Generate release tag
+      id: tag
+      run: |
+        if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+          echo "tag=${{ github.event.inputs.release_tag }}" >> $GITHUB_OUTPUT
+        else
+          echo "tag=v${{ github.run_number }}-$(date +%Y%m%d-%H%M)" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: 🚀 Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        name: "Nebula APK Release ${{ steps.tag.outputs.tag }}"
+        body: |
+          ## 📱 ${{ github.event.inputs.release_notes }}
+          
+          ### 📦 构建信息
+          - **构建类型**: ${{ github.event.inputs.build_type }}
+          - **构建时间**: ${{ env.BUILD_TIME }}
+          - **Commit**: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          - **分支**: ${{ github.ref_name }}
+          - **构建号**: ${{ github.run_number }}
+          
+          ### 📥 下载说明
+          ${{ needs.build.outputs.debug_apk != '' && '- **Debug APK**: 用于开发测试，包含调试信息' || '' }}
+          ${{ needs.build.outputs.release_apk != '' && '- **Release APK**: 生产版本（未签名），需要签名后安装' || '' }}
+          
+          ### 🛠️ 安装说明
+          1. 下载对应的APK文件
+          2. 在Android设备上允许"未知来源"应用安装
+          3. 点击APK文件进行安装
+          
+          > **注意**: Release版本需要签名后才能正常安装使用
+        files: ${{ steps.prepare_assets.outputs.asset_list }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BUILD_TIME: ${{ env.BUILD_TIME }}
+        
+  notify:
+    needs: [build, create_release]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: 📢 Build Summary
+      run: |
+        echo "## 🏗️ 构建摘要" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| 项目 | 状态 |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+        echo "| 构建类型 | ${{ github.event.inputs.build_type }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| 构建状态 | ${{ needs.build.result == 'success' && '✅ 成功' || '❌ 失败' }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Release创建 | ${{ needs.create_release.result == 'success' && '✅ 成功' || (github.event.inputs.create_release == 'true' && '❌ 失败' || '⏭️ 跳过') }} |" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.build.outputs.debug_apk }}" != "" ]; then
+          echo "| Debug APK | ✅ 已构建 |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ needs.build.outputs.release_apk }}" != "" ]; then
+          echo "| Release APK | ✅ 已构建 |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📥 下载链接" >> $GITHUB_STEP_SUMMARY
+        echo "- 前往 [Actions Artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) 下载APK文件" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ github.event.inputs.create_release }}" == "true" ] && [ "${{ needs.create_release.result }}" == "success" ]; then
+          echo "- 前往 [Releases](https://github.com/${{ github.repository }}/releases) 查看最新发布" >> $GITHUB_STEP_SUMMARY
+        fi

@@ -338,6 +338,45 @@ cd android
 
 查看构建状态和下载APK：`Actions` → `Build Android APK`
 
+### MCP手动触发构建
+使用MCP (Model Context Protocol) 可以更灵活地触发构建：
+
+#### 前置要求
+```bash
+# 安装GitHub CLI
+# Ubuntu/Debian: sudo apt install gh
+# macOS: brew install gh
+# 或从 https://cli.github.com/ 下载
+
+# 登录GitHub
+gh auth login
+```
+
+#### 使用MCP触发脚本
+```bash
+# 构建两个版本APK并创建Release
+./mcp-build-trigger.sh both
+
+# 仅构建Debug版本，不创建Release
+./mcp-build-trigger.sh debug --no-release
+
+# 构建Release版本并指定标签和说明
+./mcp-build-trigger.sh release -t v1.0.0 -m "正式版本发布"
+
+# 检查构建状态
+./mcp-build-trigger.sh --status
+
+# 列出最近的构建记录
+./mcp-build-trigger.sh --list
+```
+
+#### 通过GitHub网页手动触发
+1. 进入GitHub仓库
+2. 点击 `Actions` 标签
+3. 选择 `MCP Manual Build APK` 工作流
+4. 点击 `Run workflow` 按钮
+5. 选择构建参数并确认运行
+
 ### 注意事项
 1. Release APK未签名，需要自行签名后才能安装
 2. 确保Android SDK已安装并设置`ANDROID_HOME`环境变量

@@ -1,0 +1,97 @@
+{
+  "name": "nebula-apk-builder",
+  "version": "1.0.0",
+  "description": "Nebula WeChat APK构建MCP配置",
+  "github": {
+    "repository": "SueMuBai/nebula",
+    "workflows": {
+      "manual_build": {
+        "file": "mcp-manual-build.yml",
+        "description": "手动触发APK构建",
+        "inputs": {
+          "build_type": {
+            "type": "choice",
+            "options": ["debug", "release", "both"],
+            "default": "both",
+            "description": "选择构建类型"
+          },
+          "create_release": {
+            "type": "boolean",
+            "default": true,
+            "description": "是否创建GitHub Release"
+          },
+          "release_tag": {
+            "type": "string",
+            "required": false,
+            "description": "自定义Release标签"
+          },
+          "release_notes": {
+            "type": "string",
+            "default": "手动触发的APK构建",
+            "description": "发布说明"
+          }
+        }
+      }
+    }
+  },
+  "local_commands": {
+    "build_debug": {
+      "command": "./build-apk.sh debug",
+      "description": "本地构建Debug APK"
+    },
+    "build_release": {
+      "command": "./build-apk.sh release", 
+      "description": "本地构建Release APK"
+    },
+    "build_both": {
+      "command": "./build-apk.sh both",
+      "description": "本地构建两个版本APK"
+    },
+    "clean": {
+      "command": "./build-apk.sh clean",
+      "description": "清理构建文件"
+    }
+  },
+  "mcp_tools": [
+    {
+      "name": "trigger_github_build",
+      "description": "触发GitHub Actions构建",
+      "parameters": {
+        "build_type": {
+          "type": "string",
+          "enum": ["debug", "release", "both"],
+          "default": "both"
+        },
+        "create_release": {
+          "type": "boolean", 
+          "default": true
+        },
+        "release_notes": {
+          "type": "string",
+          "default": "MCP触发的自动构建"
+        }
+      }
+    },
+    {
+      "name": "local_build",
+      "description": "本地构建APK",
+      "parameters": {
+        "type": {
+          "type": "string",
+          "enum": ["debug", "release", "both", "clean"],
+          "default": "both"
+        }
+      }
+    },
+    {
+      "name": "check_build_status",
+      "description": "检查构建状态",
+      "parameters": {
+        "run_id": {
+          "type": "string",
+          "description": "GitHub Actions运行ID"
+        }
+      }
+    }
+  ]
+}
