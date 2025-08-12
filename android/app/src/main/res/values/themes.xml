@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme -->
+    <style name="Theme.Nebula" parent="Theme.Material3.Light">
+        <item name="colorPrimary">@color/nebula_primary</item>
+        <item name="colorPrimaryVariant">@color/nebula_primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/nebula_accent</item>
+        <item name="colorSecondaryVariant">@color/nebula_accent_dark</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <item name="android:statusBarColor" tools:targetApi="l">?attr/colorPrimaryVariant</item>
+    </style>
+
+    <style name="Theme.Nebula.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+
+    <style name="Theme.Nebula.Splash" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+
+    <style name="Theme.Nebula.AppBarOverlay" parent="ThemeOverlay.Material3.ActionBar" />
+    <style name="Theme.Nebula.PopupOverlay" parent="ThemeOverlay.Material3" />
+</resources>

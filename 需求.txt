@@ -1,0 +1,226 @@
+📝【需求与架构设计文档】(微信功能精简版)
+■ 核心功能模块
+
+用户管理
+
+手机号注册/登录(JWT认证)
+个人信息维护(昵称/头像/状态)
+好友系统
+
+搜索添加(ID/手机号)
+二维码生成与扫描
+好友关系双向验证
+私聊功能
+
+实时消息(文本/图片/语音)
+消息状态追踪(已送达/已读)
+会话管理(置顶/免打扰)
+陌生人匹配
+
+随机推荐算法
+双盲连接机制(需双方确认)
+24小时临时会话
+群聊系统
+
+创建/解散群组(≤200人)
+成员权限管理
+群消息广播
+==============================================
+🏗【技术架构设计】(轻量级单机方案)
+■ 架构特点
+
+◉ 组件依赖
+
+中间件: SQLite(嵌入式)
+通信: WebSocket(原生)+HTTP
+语言: Java 21(内置并发库)
+◉ 存储: 单文件数据库模式
+■ 模块分层
+
+网络层
+
+WebSocket消息通道
+HTTP RESTful API(用户/好友管理)
+业务逻辑层
+
+├── 用户服务(UserService)
+
+├── 好友服务(FriendService)
+
+├── 聊天服务(ChatService)
+
+├── 匹配服务(MatchService)
+
+└── 群组服务(GroupService)
+
+持久层
+
+JDBC直连SQLite
+分表策略:
+用户表(users)
+好友表(friendships)
+消息表(messages_{month})
+群组表(groups)
+■ 关键数据结构(SQLite)
+
+-- 用户表
+
+CREATE TABLE users (
+
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+phone TEXT UNIQUE NOT NULL,
+
+password TEXT NOT NULL,
+
+nickname TEXT DEFAULT '用户',
+
+avatar TEXT,
+
+status INT DEFAULT 0  -- 0=离线,1=在线
+
+);
+
+-- 好友关系表
+
+CREATE TABLE friendships (
+
+user_a INT NOT NULL,
+
+user_b INT NOT NULL,
+
+status INT NOT NULL, -- 0=请求中,1=已好友
+
+remark TEXT,
+
+created_at BIGINT,
+
+PRIMARY KEY (user_a, user_b)
+
+);
+
+-- 消息表(按月分表)
+
+CREATE TABLE messages_202405 (
+
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+sender INT NOT NULL,
+
+receiver INT NOT NULL, -- 个人ID或群ID
+
+type INT NOT NULL,     -- 0=私聊,1=群聊
+
+content TEXT NOT NULL,
+
+status INT DEFAULT 0,  -- 0=未送达,1=已送达,2=已读
+
+timestamp BIGINT
+
+);
+
+-- 群组表
+
+CREATE TABLE groups (
+
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+name TEXT NOT NULL,
+
+owner INT NOT NULL,
+
+create_time BIGINT
+
+);
+
+-- 群成员表
+
+CREATE TABLE group_members (
+
+group_id INT NOT NULL,
+
+user_id INT NOT NULL,
+
+role INT DEFAULT 0,  -- 0=成员,1=管理员
+
+PRIMARY KEY (group_id, user_id)
+
+);
+
+==============================================
+🔌【接口规范】(核心示例)
+■ UserService
+
+POST /register
+
+{ "phone": "13800138000", "password": "****"}
+
+POST /login → 返回{ token: "jwt_string" }
+
+■ FriendService
+
+POST /friends/request
+
+{ "from":1001, "to":1002 } → 触发好友申请
+
+POST /friends/approve
+
+{ "requestId": 5001, "action":"accept" }
+
+■ ChatService
+
+WS /chat → 消息格式:
+
+{
+
+"type": "text/voice/img",
+
+"from": 1001,
+
+"to": 2002,     // 个人ID或群ID
+
+"content": "hello",
+
+"timestamp": 1715589000
+
+}
+
+■ MatchService
+
+POST /match/random → 返回{ userId: 1003 }
+
+POST /match/confirm/{userId} → 建立临时会话
+
+■ GroupService
+
+POST /groups/create
+
+{ "name": "技术分享", "members": [1001,1002] }
+
+POST /groups/{groupId}/invite
+
+{ "userId": 1005 }
+
+==============================================
+⚡【性能优化策略】
+消息批处理 - 每100ms批量入库
+连接管理 - 使用WeakHashMap维护在线session
+SQLite优化：
+PRAGMA journal_mode=WAL;
+消息表按时间分区
+资源清理 - 定时清除24小时未活动临时会话
+==============================================
+🚀【部署方案】
+启动命令：
+
+java -Xms128m -Xmx256m -jar wechat-core.jar
+
+监控指标：
+
+在线用户数: JVM内置监控
+消息吞吐: 日志统计QPS
+扩展路径：
+
+用户量>1万 → 增加Redis缓存消息路由表
+
+保存文件名: wechat_system_design_v1.txt

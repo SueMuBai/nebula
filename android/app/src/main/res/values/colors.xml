@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="nebula_primary">#6366F1</color>
+    <color name="nebula_primary_dark">#4F46E5</color>
+    <color name="nebula_accent">#10B981</color>
+    <color name="nebula_accent_dark">#059669</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+    <color name="grey_light">#F5F5F5</color>
+    <color name="grey_dark">#424242</color>
+    <color name="blue">#2196F3</color>
+    <color name="green">#4CAF50</color>
+    <color name="red">#F44336</color>
+    <color name="orange">#FF9800</color>
+</resources>
